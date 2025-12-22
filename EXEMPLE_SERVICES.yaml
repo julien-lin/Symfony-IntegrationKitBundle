@@ -1,0 +1,20 @@
+# Example services.yaml configuration to use the Slack integration
+#
+# Copy to your Symfony project: config/services.yaml
+# or create a file config/packages/integration_kit.yaml
+
+services:
+    # Slack integration (optional, for organization)
+    IntegrationKit\Bundle\Example\SlackIntegration:
+        tags:
+            - { name: 'integration_kit.integration', name: 'slack' }
+    
+    # Slack handler (required)
+    IntegrationKit\Bundle\Example\SlackNotifyHandler:
+        arguments:
+            # HttpClient is automatically injected by Symfony
+            $webhookUrl: '%env(SLACK_WEBHOOK_URL)%'
+        tags:
+            # IMPORTANT: The 'command' attribute must match the command class
+            - { name: 'integration_kit.handler', command: 'IntegrationKit\Bundle\Example\SlackNotifyCommand' }
+

@@ -1,0 +1,201 @@
+# Usage Example - Slack Integration
+
+This example shows how to use the `IntegrationKitBundle` to create a simple Slack integration.
+
+## Example Structure
+
+```
+src/IntegrationKit/Bundle/Example/
+├── SlackIntegration.php          # Logical aggregate (optional)
+├── SlackNotifyCommand.php        # Typed command
+└── SlackNotifyHandler.php        # Explicit handler
+```
+
+## 1. Create the Command
+
+```php
+<?php
+
+use IntegrationKit\Bundle\IntegrationCommand;
+
+final class SlackNotifyCommand implements IntegrationCommand
+{
+    public function __construct(
+        public readonly string $text,
+        public readonly array $blocks = []
+    ) {}
+
+    public function integrationName(): string
+    {
+        return 'slack';
+    }
+}
+```
+
+## 2. Create the Handler
+
+```php
+<?php
+
+use IntegrationKit\Bundle\IntegrationHandlerInterface;
+use IntegrationKit\Bundle\Exception\IntegrationException;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
+
+final class SlackNotifyHandler implements IntegrationHandlerInterface
+{
+    public function __construct(
+        private readonly HttpClientInterface $httpClient,
+        private readonly string $webhookUrl
+    ) {}
+
+    public function supports(): string
+    {
+        return SlackNotifyCommand::class;
+    }
+
+    public function handle(IntegrationCommand $command): mixed
+    {
+        assert($command instanceof SlackNotifyCommand);
+        
+        $response = $this->httpClient->request('POST', $this->webhookUrl, [
+            'json' => ['text' => $command->text],
+        ]);
+        
+        if (200 !== $response->getStatusCode()) {
+            throw new IntegrationException('slack', 'Notification failed');
+        }
+        
+        return null;
+    }
+}
+```
+
+## 3. Register Services in Symfony
+
+```yaml
+# config/services.yaml
+
+services:
+    # Integration (optional, for organization)
+    IntegrationKit\Bundle\Example\SlackIntegration:
+        tags:
+            - { name: 'integration_kit.integration', name: 'slack' }
+    
+    # Handler (required)
+    IntegrationKit\Bundle\Example\SlackNotifyHandler:
+        arguments:
+            $webhookUrl: '%env(SLACK_WEBHOOK_URL)%'
+        tags:
+            - { name: 'integration_kit.handler', command: 'IntegrationKit\Bundle\Example\SlackNotifyCommand' }
+```
+
+## 4. Use in Your Business Code
+
+```php
+<?php
+
+use IntegrationKit\Bundle\Executor\IntegrationExecutorInterface;
+use IntegrationKit\Bundle\Example\SlackNotifyCommand;
+
+class UserService
+{
+    public function __construct(
+        private readonly IntegrationExecutorInterface $executor
+    ) {}
+
+    public function notifyUserRegistered(User $user): void
+    {
+        // Simple synchronous execution
+        $this->executor->execute(new SlackNotifyCommand(
+            "User {$user->getEmail()} registered"
+        ));
+    }
+
+    public function notifyUserRegisteredWithInstrumentation(User $user): void
+    {
+        // Execution with instrumentation (ApiResult)
+        $result = $this->executor->executeWithResult(new SlackNotifyCommand(
+            "User {$user->getEmail()} registered"
+        ));
+
+        if ($result->isSuccess()) {
+            $duration = $result->getMetadata()['duration_ms'];
+            // Log or metric
+        }
+    }
+}
+```
+
+## 5. Use with Messenger (Asynchronous)
+
+```php
+<?php
+
+use IntegrationKit\Bundle\Messenger\IntegrationMessage;
+use Symfony\Component\Messenger\MessageBusInterface;
+
+class UserService
+{
+    public function __construct(
+        private readonly MessageBusInterface $messageBus
+    ) {}
+
+    public function notifyUserRegisteredAsync(User $user): void
+    {
+        $command = new SlackNotifyCommand("User {$user->getEmail()} registered");
+        $message = new IntegrationMessage($command, ['user_id' => $user->getId()]);
+        
+        $this->messageBus->dispatch($message);
+    }
+}
+```
+
+## 6. Test the Integration
+
+```php
+<?php
+
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
+
+class SlackNotifyHandlerTest extends TestCase
+{
+    public function testHandlerSendsNotification(): void
+    {
+        $httpClient = new MockHttpClient([
+            new MockResponse('ok', ['http_code' => 200])
+        ]);
+
+        $handler = new SlackNotifyHandler($httpClient, 'https://hooks.slack.com/test');
+        $command = new SlackNotifyCommand('Test message');
+
+        $handler->handle($command);
+
+        // Verify that the request was made
+        $this->assertCount(1, $httpClient->getRequests());
+    }
+}
+```
+
+## Important Points
+
+1. **Strong typing**: The command is typed, no magic strings
+2. **Direct HttpClient**: The handler uses HttpClient directly, not hidden
+3. **Explicit mapping**: The handler explicitly declares which command it supports
+4. **Testable**: Uses MockHttpClient to test without real HTTP calls
+5. **Automatic events**: Events are automatically dispatched by the Executor
+6. **Automatic logging**: Logs are automatically generated by IntegrationLoggerListener
+
+## Environment Variables
+
+```env
+# .env
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+```
+
+## Next Steps
+
+- Add other commands (SlackUpdateCommand, SlackDeleteCommand, etc.)
+- Add retry handling via Messenger
+- Add custom metrics via events
+- Create other integrations (Stripe, CRM, etc.) following the same pattern

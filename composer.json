@@ -1,0 +1,48 @@
+{
+    "name": "integration-kit/bundle",
+    "type": "symfony-bundle",
+    "description": "Standardize external API consumption in Symfony",
+    "keywords": ["symfony", "bundle", "api", "integration", "http-client", "integration-kit", "external-integration"],
+    "license": "MIT",
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=8.2",
+        "symfony/dependency-injection": "^7.0|^8.0",
+        "symfony/event-dispatcher": "^7.0|^8.0",
+        "symfony/framework-bundle": "^7.0|^8.0",
+        "symfony/http-client": "^7.0|^8.0",
+        "symfony/http-kernel": "^7.0|^8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "symfony/messenger": "^7.0|^8.0",
+        "symfony/test-pack": "^1.1"
+    },
+    "suggest": {
+        "symfony/messenger": "Pour le support des appels asynchrones"
+    },
+    "autoload": {
+        "psr-4": {
+            "IntegrationKit\\Bundle\\": "src/IntegrationKit/Bundle/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "IntegrationKit\\Bundle\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "symfony/flex": true,
+            "symfony/runtime": true
+        }
+    },
+    "extra": {
+        "symfony": {
+            "allow-contrib": false
+        }
+    }
+}
+
